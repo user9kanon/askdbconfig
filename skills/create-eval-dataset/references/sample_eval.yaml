@@ -1,0 +1,105 @@
+# Sample evaluation set. Shows the file format and one case per category.
+# The tables (orders, customers) and the rules (paid orders only) are made up for this
+# example. Replace them with the real database's tables and confirmed business rules.
+# Every expected_sql must be run against the real database before the set is used.
+
+database: sales            # must equal the `name` in the database config
+
+cases:
+  # totals_trend: totals and monthly trends
+  - id: total_paid_revenue_2025
+    question: What was our total revenue in 2025?
+    category: totals_trend
+    expected_sql: |
+      SELECT SUM(amount) AS total_revenue
+      FROM orders
+      WHERE status = 'paid'
+        AND order_date >= '2025-01-01' AND order_date < '2026-01-01'
+    notes: Revenue = paid orders only. Explicit period, not date('now').
+
+  - id: monthly_orders_2025
+    question: how many orders did we get each month last year
+    category: totals_trend
+    expected_sql: |
+      SELECT strftime('%Y-%m', order_date) AS month, COUNT(*) AS order_count
+      FROM orders
+      WHERE order_date >= '2025-01-01' AND order_date < '2026-01-01'
+      GROUP BY month
+      ORDER BY month
+    notes: Casual phrasing. All statuses counted, since the question does not say paid.
+
+  # ranking: top N, with a deterministic tie-break
+  - id: top_3_customers_by_revenue_2025
+    question: Who are our top 3 customers by revenue in 2025?
+    category: ranking
+    expected_sql: |
+      SELECT c.customer_id, SUM(o.amount) AS total_revenue
+      FROM orders o
+      JOIN customers c ON c.customer_id = o.customer_id
+      WHERE o.status = 'paid'
+        AND o.order_date >= '2025-01-01' AND o.order_date < '2026-01-01'
+      GROUP BY c.customer_id
+      ORDER BY total_revenue DESC, c.customer_id
+      LIMIT 3
+    notes: customer_id breaks ties so the expected rows are the same on every run.
+
+  # filter: totals or lists with a filter
+  - id: open_orders_by_region
+    question: Which regions have orders still open?
+    category: filter
+    expected_sql: |
+      SELECT DISTINCT c.region
+      FROM orders o
+      JOIN customers c ON c.customer_id = o.customer_id
+      WHERE o.status = 'open'
+      ORDER BY c.region
+    notes: Status code 'open' comes from the approved value list in the config.
+
+  # comparison: two periods, with a follow-up turn in `conversation`
+  - id: revenue_2025_vs_2024
+    question: How does 2025 revenue compare with 2024?
+    category: comparison
+    expected_sql: |
+      SELECT strftime('%Y', order_date) AS year, SUM(amount) AS total_revenue
+      FROM orders
+      WHERE status = 'paid'
+        AND order_date >= '2024-01-01' AND order_date < '2026-01-01'
+      GROUP BY year
+      ORDER BY year
+    notes: Two rows, one per year. The grader compares the rows, not the wording.
+
+  - id: revenue_2025_vs_2024_followup
+    question: And what about the difference in percent?
+    category: comparison
+    conversation:
+      - question: How does 2025 revenue compare with 2024?
+        sql: |
+          SELECT strftime('%Y', order_date) AS year, SUM(amount) AS total_revenue
+          FROM orders
+          WHERE status = 'paid'
+            AND order_date >= '2024-01-01' AND order_date < '2026-01-01'
+          GROUP BY year
+          ORDER BY year
+    expected_sql: |
+      SELECT ROUND(
+        100.0 * (SUM(CASE WHEN order_date >= '2025-01-01' THEN amount END)
+                 - SUM(CASE WHEN order_date < '2025-01-01' THEN amount END))
+        / SUM(CASE WHEN order_date < '2025-01-01' THEN amount END), 1) AS pct_change
+      FROM orders
+      WHERE status = 'paid'
+        AND order_date >= '2024-01-01' AND order_date < '2026-01-01'
+    notes: Follow-up case. Needs the prior turn to resolve "the difference".
+
+  # clarification: the description gives no default for the word
+  - id: clarify_top_customers
+    question: Show me the top customers.
+    category: clarification
+    expected_outcome: clarification
+    notes: '"Top" is not defined (by revenue, orders, or period). The app should ask, not guess.'
+
+  # declined: not a question about the data
+  - id: decline_poem
+    question: Write me a poem about the ocean.
+    category: non_data
+    expected_outcome: declined
+    notes: Not a data question. The app should decline.
