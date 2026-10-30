@@ -1,0 +1,233 @@
+# askdb database config for the Chinook music store sample database.
+name: chinook_sqlite
+display_name: Chinook Music Store
+path: C:/claudelab/askdbconfig/data/chinook_sqlite.sqlite
+calendar:
+  fiscal_year_start_month: 1
+data_coverage:
+  mode: static_snapshot
+  start: '2021-01-01'
+  end: '2025-12-22'
+description: |
+  Chinook is a digital music store that sells individual tracks. This database holds its
+  catalogue (artists, albums, tracks, genres, media types, playlists), its customers and
+  sales staff, and its sales (invoices and invoice lines). Sales cover 2021-01-01 to
+  2025-12-22: 412 invoices from 59 customers in 24 countries. All money is in USD.
+
+  Grain of each table:
+  - `Invoice`: one row per customer purchase. `Total` equals the sum of its lines.
+  - `InvoiceLine`: one row per track sold on an invoice. `Quantity` is always 1.
+  - `Track`: one row per track in the catalogue. Each track belongs to one album, genre
+    and media type.
+  - `PlaylistTrack`: one row per track on a playlist (many-to-many).
+  - `Employee`: staff. Customers are assigned a support rep through `Customer.SupportRepId`.
+
+  How the tables join: Artist -> Album -> Track; Track -> Genre and MediaType;
+  Track <- InvoiceLine -> Invoice -> Customer -> Employee (support rep);
+  Playlist <- PlaylistTrack -> Track; Employee.ReportsTo -> Employee (manager).
+
+  Business rules:
+  - Revenue is the sum of `Invoice.Total`. For breakdowns by track, album, artist, genre or
+    media type, use `InvoiceLine.UnitPrice * InvoiceLine.Quantity`, which adds up to the
+    same amount.
+  - Use `Invoice.InvoiceDate` for time periods. Use the `Billing*` columns on `Invoice`
+    for where a sale happened, and `Customer` columns for where the customer lives.
+tables:
+- name: Album
+  description: One row per album. Each album belongs to one artist.
+  columns:
+  - name: AlbumId
+    type: INTEGER
+    primary_key: true
+  - name: Title
+    type: TEXT
+  - name: ArtistId
+    type: INTEGER
+    references: Artist.ArtistId
+- name: Artist
+  description: One row per recording artist or band.
+  columns:
+  - name: ArtistId
+    type: INTEGER
+    primary_key: true
+  - name: Name
+    type: TEXT
+- name: Customer
+  description: One row per store customer, with contact details and their assigned support rep.
+  columns:
+  - name: CustomerId
+    type: INTEGER
+    primary_key: true
+  - name: FirstName
+    type: TEXT
+  - name: LastName
+    type: TEXT
+  - name: Company
+    type: TEXT
+    description: Company the customer works for; null for most customers.
+  - name: Address
+    type: TEXT
+  - name: City
+    type: TEXT
+  - name: State
+    type: TEXT
+    description: State or province; null for countries without one.
+  - name: Country
+    type: TEXT
+  - name: PostalCode
+    type: TEXT
+  - name: Phone
+    type: TEXT
+  - name: Fax
+    type: TEXT
+  - name: Email
+    type: TEXT
+  - name: SupportRepId
+    type: INTEGER
+    description: Employee who is this customer's support rep.
+    references: Employee.EmployeeId
+- name: Employee
+  description: One row per staff member.
+  columns:
+  - name: EmployeeId
+    type: INTEGER
+    primary_key: true
+  - name: LastName
+    type: TEXT
+  - name: FirstName
+    type: TEXT
+  - name: Title
+    type: TEXT
+    description: 'Job title: General Manager, Sales Manager, Sales Support Agent, IT Manager, IT Staff.'
+  - name: ReportsTo
+    type: INTEGER
+    description: EmployeeId of this employee's manager; null for the General Manager.
+    references: Employee.EmployeeId
+  - name: BirthDate
+    type: DATETIME
+  - name: HireDate
+    type: DATETIME
+  - name: Address
+    type: TEXT
+  - name: City
+    type: TEXT
+  - name: State
+    type: TEXT
+  - name: Country
+    type: TEXT
+  - name: PostalCode
+    type: TEXT
+  - name: Phone
+    type: TEXT
+  - name: Fax
+    type: TEXT
+  - name: Email
+    type: TEXT
+- name: Genre
+  description: One row per music genre.
+  columns:
+  - name: GenreId
+    type: INTEGER
+    primary_key: true
+  - name: Name
+    type: TEXT
+- name: Invoice
+  description: One row per customer purchase.
+  columns:
+  - name: InvoiceId
+    type: INTEGER
+    primary_key: true
+  - name: CustomerId
+    type: INTEGER
+    references: Customer.CustomerId
+  - name: InvoiceDate
+    type: DATETIME
+    description: Date of the purchase.
+  - name: BillingAddress
+    type: TEXT
+  - name: BillingCity
+    type: TEXT
+  - name: BillingState
+    type: TEXT
+  - name: BillingCountry
+    type: TEXT
+    description: Country the invoice was billed to.
+  - name: BillingPostalCode
+    type: TEXT
+  - name: Total
+    type: REAL
+    description: Invoice amount in USD; equals the sum of UnitPrice * Quantity over its lines.
+- name: InvoiceLine
+  description: One row per track sold on an invoice.
+  columns:
+  - name: InvoiceLineId
+    type: INTEGER
+    primary_key: true
+  - name: InvoiceId
+    type: INTEGER
+    references: Invoice.InvoiceId
+  - name: TrackId
+    type: INTEGER
+    references: Track.TrackId
+  - name: UnitPrice
+    type: REAL
+    description: Price charged for the track on this invoice, in USD.
+  - name: Quantity
+    type: INTEGER
+    description: Number of units sold; always 1 in the current data.
+- name: MediaType
+  description: One row per file format a track is sold in.
+  columns:
+  - name: MediaTypeId
+    type: INTEGER
+    primary_key: true
+  - name: Name
+    type: TEXT
+    description: MPEG audio file, Protected AAC audio file, Protected MPEG-4 video file, Purchased AAC
+      audio file, AAC audio file.
+- name: Playlist
+  description: One row per curated playlist.
+  columns:
+  - name: PlaylistId
+    type: INTEGER
+    primary_key: true
+  - name: Name
+    type: TEXT
+- name: PlaylistTrack
+  description: 'Links playlists to tracks: one row per track on a playlist. The key is (PlaylistId, TrackId).'
+  columns:
+  - name: PlaylistId
+    type: INTEGER
+    references: Playlist.PlaylistId
+  - name: TrackId
+    type: INTEGER
+    references: Track.TrackId
+- name: Track
+  description: One row per track in the catalogue.
+  columns:
+  - name: TrackId
+    type: INTEGER
+    primary_key: true
+  - name: Name
+    type: TEXT
+  - name: AlbumId
+    type: INTEGER
+    references: Album.AlbumId
+  - name: MediaTypeId
+    type: INTEGER
+    references: MediaType.MediaTypeId
+  - name: GenreId
+    type: INTEGER
+    references: Genre.GenreId
+  - name: Composer
+    type: TEXT
+    description: Composer credit as free text; null for about 28% of tracks.
+  - name: Milliseconds
+    type: INTEGER
+    description: Track length in milliseconds.
+  - name: Bytes
+    type: INTEGER
+    description: File size in bytes.
+  - name: UnitPrice
+    type: REAL
+    description: Current list price of the track in USD (the price actually charged is InvoiceLine.UnitPrice).

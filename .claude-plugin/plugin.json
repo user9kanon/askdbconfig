@@ -1,0 +1,8 @@
+{
+"name": "askdb",
+"description": "Skills for askdb: create database YAML configs for SQLite databases, and create evaluation datasets with confirmed expected SQL.",
+"version": "1.0.0",
+"author": {
+"name": "Manaranjan Pradhan"
+}
+}

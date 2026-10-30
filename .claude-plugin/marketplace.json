@@ -1,0 +1,15 @@
+{
+"name": "askdb-skills",
+"owner": {
+"name": "Manaranjan Pradhan"
+},
+"metadata": { "description": "Claude Code plugin for askdb: database config and evaluation dataset skills."
+},
+"plugins": [
+{
+"name": "askdb",
+"source": "./",
+"description": "Create askdb database configs and evaluation datasets."
+}
+]
+}
